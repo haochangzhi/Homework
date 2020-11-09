@@ -15,24 +15,28 @@
 #include <unistd.h>
 #include <pthread.h>
 
+#include <MainUI.c>
 //保存文件的信息
 #pragma pack(1)
 //结构体: 消息结构体
 struct SEND_DATA
 {
-    char stat;      //状态: 0x1 上线  0x2 下线  0x3 正常数据 0x4 请求好友 0x5 同意好友 0x6注册用户 0x7登陆请求
+    char stat;      //状态: 0x1 上线  0x2 下线  0x3 聊天数据 0x4 请求好友 0x5 添加好友 0x6注册用户 0x7登陆请求 0x08 发送文件
     char my_name[100]; //我的昵称
     char your_name[100] //发送目标的昵称
     char data[100]; //发送的实际聊天数据
     char account[100]; //为了方便，不考虑效率的情况下把所有信息汇聚进一个结构体，根据不同的stat复用结构体
-    char password [100];
+    char password[100];
 };
 
 int sockfd;
 struct SEND_DATA recv_data;
 struct SEND_DATA send_data;
 int run_flag=1; //运行标志
+int sign_flag=0;
+int login_flag=0;
 
+char name [30];
 /*
 线程工作函数
 */
@@ -41,6 +45,7 @@ void *thread_work_func(void *arg)
      //3.2 接收数据
     int select_cnt=0;
     int r_cnt;
+    int choice;
     fd_set readfds;
 
     while(1)
@@ -71,16 +76,47 @@ void *thread_work_func(void *arg)
             {
                 printf("%s 用户下线.\n",recv_data.your_name);
             }
+            //用户给我发送的信息
             else if(recv_data.stat==0x3)
             {
                 printf("%s:%s\n",recv_data.your_name,recv_data.data);
             } 
+            //用户请求与我成为好友
+            else if(recv_data.stat==0x4)
+            {
+                printf("%s 用户申请与你成为好友\n",recv_data.your_name);
+                fflush(stdin);
+                printf("是否同意与他成为好友，No=0 or Yes=1\n");
+                scanf("%c",&choice);
+                //与用户成为好友，给服务器发送0x5，服务器收到以后就会建立与用户的联系
+                if(choice == '1')
+                {
+                    send_data.stat = 0x5;
+                    strcpy(send_data.my_name,my_name);
+                    strcpy(send_data.your_name,recv_data.your_name);
+                    write(sockfd,&send_data,sizeof(struct SEND_DATA));
+                } 
+            }
+            //用户同意的信息
             else if(recv_data.stat==0x5)
             {
-                printf("%s 用户同意了你的好友请求",recv_data.your_name)
+                printf("%s 用户同意了你的好友请求\n",recv_data.your_name);
             }
-            
-            
+            //服务器存储注册数据成功
+            else if(recv_data.stat==0x6)
+            {
+                sign_flag = 1;
+            }
+            //服务器校验登录数据正确
+            else if(recv_data.stat==0x7)
+            {
+                login_flag = 1;
+            }
+            //有用户给我发了文件，后台接收
+            else if (recv_data.stat==0x8)
+            {
+                printf("%s 用户发送文件给我\n",recv_data.your_name);
+            }
         }
         else
         {
@@ -99,9 +135,10 @@ TCP客户端的创建步骤:
 */
 int main(int argc,char **argv)
 {
-     if(argc!=4)
+    char my_name[100]; //我的昵称
+     if(argc!=3)
     {
-        printf("参数: ./tcp_client <IP地址> <端口号> <用户昵称>\n");
+        printf("参数: ./tcp_client <IP地址> <端口号> \n");
         return 0;
     }
     /*1. 创建socket套接字*/
@@ -122,14 +159,15 @@ int main(int argc,char **argv)
         return 0;
     }
 
-    //上线提醒
-    send_data.stat=0x1; //上线
-    strcpy(send_data.my_name,argv[3]); //昵称
-    write(sockfd,&send_data,sizeof(struct SEND_DATA));
-
     //创建线程接收消息
     pthread_t pthread_id;
     pthread_create(&pthread_id,NULL,thread_work_func,NULL);
+
+    //显示登录界面
+    Main_UI_Hello();
+    
+    //显示好友添加或选择界面
+    Main_UI_Menu()
 
     //发送消息
     send_data.stat=0x3;
