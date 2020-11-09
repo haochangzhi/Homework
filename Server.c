@@ -71,12 +71,14 @@ pthread_mutex_t mutex_lock;
 //结构体: 消息结构体
 struct SEND_DATA
 {
-    char name[100]; //昵称
+    char stat;      //状态: 0x1 上线  0x2 下线  0x3 聊天数据 0x4 请求好友 0x5 添加好友 0x6注册用户 0x7登陆请求 0x08 发送文件
+    char my_name[100]; //我的昵称
+    char your_name[100]; //发送目标的昵称
     char data[100]; //发送的实际聊天数据
-    char stat;      //状态: 0x1 上线  0x2 下线  0x3 正常数据
-};
-//转发消息
-void Client_SendData(int client_fd,struct Client_FD *list_head,struct SEND_DATA *sendata);
+    char account[100]; //为了方便，不考虑效率的情况下把所有信息汇聚进一个结构体，根据不同的stat复用结构体
+    char password[100];
+};//转发消息
+void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *sendata);
 
 int main(int argc,char **argv)
 {
@@ -182,17 +184,13 @@ void *thread_work_func(void *arg)
 {
     int client_fd=*(int*)arg; //取出客户端套接字
     free(arg);
-
+    struct SEND_DATA recdata; 
     int select_cnt=0;
     fd_set readfds;
     struct timeval timeout;
     int r_cnt;
     //保存客户端套接字描述符
     List_AddNode(list_head,client_fd);
-
-    //定义结构体变量--客户端发送过来的数据
-    struct SEND_DATA sendata;
-     
     //注册清理函数
     //3种:  pthread_exit 、pthread_cleanup_pop(1); 被其他线程杀死(取消执行)
     int index;
@@ -202,33 +200,17 @@ void *thread_work_func(void *arg)
 
     //实现与客户端通信
     while(thread_run_flag)
-    {
-        timeout.tv_sec=0;
-        timeout.tv_usec=0;  
-        //清空集合
-        FD_ZERO(&readfds);
-        //添加需要检测的文件描述符
-        FD_SET(client_fd,&readfds);
-        //检测客户端的IO状态  
-        select_cnt=select(client_fd+1,&readfds,NULL,NULL,&timeout);
-        if(select_cnt>0)
+    {   
+        r_cnt=read(client_fd,&recdata,sizeof(struct SEND_DATA));
+        //strcpy(list_head->name,recdata.my_name);
+        Data_interrupt(client_fd,list_head,&recdata); //参数：1.进入消息中断的客户端的文件标识符 2.记录有全部客户端标识符的链表头 3.收到的消息
+        if(r_cnt<=0)  //判断对方是否断开连接
         {
-            //读取客户端发送过来的数据
-            r_cnt=read(client_fd,&sendata,sizeof(struct SEND_DATA));
-            if(r_cnt<=0)  //判断对方是否断开连接
-            {
-                sendata.stat=0x2; //下线
-                Client_SendData(client_fd,list_head,&sendata); //转发下线消息
-                ListDelNode(list_head,client_fd); //删除当前的套接字
-                printf("服务器提示: 客户端断开连接.\n");
-                break;
-            }
-            Client_SendData(client_fd,list_head,&sendata);
-        }
-        else if(select_cnt<0)
-        {
-            printf("服务器提示: select 函数出现错误.\n");
-            break;   
+           	//sendata.stat=0x2; //下线
+            //Client_SendData(client_fd,list_head,&sendata); //转发下线消息
+            ListDelNode(list_head,client_fd); //删除当前的套接字
+            printf("服务器提示: 客户端断开连接.\n");
+            break;
         }
     }
     //配套的清理函数
@@ -322,6 +304,7 @@ void List_AddNode(struct Client_FD *list_head,int fd)
     new_p->next=NULL;
     new_p->fd=fd;
     p->next=new_p;
+
     pthread_mutex_unlock(&mutex_lock);
 }
 
@@ -347,18 +330,38 @@ void ListDelNode(struct Client_FD *list_head,int fd)
 
 /*
 函数功能: 向在线的所有客户端发送消息
-状态: 0x1 上线  0x2 下线  0x3 正常数据
+
+struct SEND_DATA
+{
+    char stat;      //状态: 0x1 上线  0x2 下线  0x3 聊天数据 0x4 请求好友 0x5 添加好友 0x6注册用户 0x7登陆请求 0x08 发送文件
+    char my_name[100]; //我的昵称
+    char your_name[100]; //发送目标的昵称
+    char data[100]; //发送的实际聊天数据
+    char account[100]; //为了方便，不考虑效率的情况下把所有信息汇聚进一个结构体，根据不同的stat复用结构体
+    char password[100];
+};//转发消息
 */
-void Client_SendData(int client_fd,struct Client_FD *list_head,struct SEND_DATA *sendata)
+
+void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *recdata)
 {
     struct Client_FD *p=list_head;
+    struct SEND_DATA sendata;
     pthread_mutex_lock(&mutex_lock);
+    
+    printf("收到来自文件标识符%d的消息，进入消息中断\n",client_fd);
+    printf("stat:%d\n",recdata->stat);
+	printf("my_name:%s\n",recdata->my_name);
+	printf("your_name:%s\n",recdata->your_name);
+	printf("data:%s",recdata->data);
+	printf("account:%s\n",recdata->account);
+	printf("password:%s\n",recdata->password);
     while(p->next)
-    {
-        p=p->next;
+    {	
+    	p=p->next;
         if(p->fd!=client_fd)
         {
-            write(p->fd,sendata,sizeof(struct SEND_DATA));
+        	
+            //write(p->fd,recdata,sizeof(struct SEND_DATA));
         } 
     }
     pthread_mutex_unlock(&mutex_lock);

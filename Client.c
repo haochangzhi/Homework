@@ -134,10 +134,10 @@ void *thread_work_func(void *arg)
 void Account_UI_Login()
 {
     system("clear");
-    char password[30];
+    //char password[30];
     printf("请输入用户名:");
     scanf("%s",name);
-    fflush(stdin);
+    /*fflush(stdin);
     printf("请输入密码:");
     scanf("%s",password);
     fflush(stdin);
@@ -150,6 +150,7 @@ void Account_UI_Login()
         if(login_flag)
             break;
     }
+    */
     //告诉服务器我上线了
     send_data.stat=0x1; //上线
     strcpy(send_data.my_name,name); //昵称
@@ -189,7 +190,6 @@ void Main_UI_Menu(){
                 "功能选择:");
         
         scanf("%c",&choice);
-        if(choice == '\n') continue;
         fflush(stdin);
         switch(choice){
             case '1':
@@ -198,6 +198,11 @@ void Main_UI_Menu(){
             case '2':
                 //Friends_UI_Add();
                 break;
+            case '3':
+                //Friends_UI_Add();
+            	printf("chatting");
+                return;
+                break;    
         }
     }while(choice != '4');
 }
@@ -208,7 +213,7 @@ void Main_UI_Hello(){
         system("clear");
         printf(
             "==============================\n"
-            " ****欢迎使用葫芦娃聊天室****\n"
+            " ****欢迎使用Zhichat****\n"
             "==============================\n");
         printf(
                 "功能选项:\n"
@@ -279,15 +284,19 @@ int main(int argc,char **argv)
 
     //发送消息
     send_data.stat=0x3;
+    strcpy(send_data.your_name,"harry");
+    strcpy(send_data.my_name,name);
     while(1)
     {
-        fgets(send_data.data,100,stdin); //从键盘上读取消息
+        //fgets(send_data.data,100,stdin); //从键盘上读取消息
+        strcpy(send_data.data,"harry");
         if(run_flag==0)break; //与服务器断开连接
         if(write(sockfd,&send_data,sizeof(struct SEND_DATA))<0)
         {
             printf("向服务器发送消息失败.\n");
             break;
         }
+        break;
     }
     /*4. 关闭套接字*/
     close(sockfd);
