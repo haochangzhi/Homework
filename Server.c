@@ -74,11 +74,13 @@ int * User_Online(int account,struct Client_FD *list_head,int fd,int ** friend_l
 void User_Offline(int * user_list,int account,struct Client_FD * list_head,int ** friend_list);
 void Message_Deliver(int * user_list,int my_account,int your_account,char * data,int ** friend_list);
 void Friend_Request(int * user_list,int my_account,int your_account,int ** friend_list);
-void Init_Friend_List(int ** friend_list);
+void Init_Friend_List(int friend_list[][]);
 void Friend_Accept(int * user_list,int my_account,int your_account,int ** friend_list);
 void Sign_In(int my_account,char * password, int fd);
 void User_Login(int my_account,char * password, int fd);
 int Get_FD_from_Account(int * user_list,int account);
+void Send_Online_Message(int fd,int account);
+void Send_Offline_Message(int fd,int account);
 //结构体: 消息结构体
 struct SEND_DATA
 {
@@ -210,7 +212,7 @@ void *thread_work_func(void *arg)
 
     int user_list [100];
     int friend_list[100][100]; //friend_list[x][0]放my_account,friend_list[x][0~99]放friend_account,遍历friend_list[x][0]找到my_account，再遍历friend_list[i][y]找your_account，能找到则说明存在好友关系
-    Init_Friend_List(friend_list); //初始化好友列表，从文件中读取二维数组。
+    //Init_Friend_List(friend_list); //初始化好友列表，从文件中读取二维数组。
     //实现与客户端通信
     while(thread_run_flag)
     {   
@@ -376,15 +378,15 @@ void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *
         break; //case2执行的操作：1.将下线账号和对应fd从数组中删除 2.将下线通知转发给好友
         case 3: Message_Deliver(user_list,recdata->account,recdata->your_account,recdata->data,friend_list);
         break; //case3执行的操作： 0. 从friend_list确定双方是否是好友 1.找到信息收发两方的文件标示符 2.如果找不到，即your_name不在线，返回错误语句 3.否则将消息1对1转发
-        case 4: Friend_Request(user_list,recdata->my_name,recdata->your_account,friend_list); 
+        case 4: Friend_Request(user_list,recdata->account,recdata->your_account,friend_list); 
         break; //case4执行的操作： 0. 从friend_list确定双方是否是好友 1.找到好友添加双方的文件标示符 2.如果找不到，即your_name不在线，返回错误语句 3.否则将好友请求消息发送给your_name
-        case 5: Friend_Accept(user_list,recdata->my_name,recdata->your_account,friend_list);
+        case 5: Friend_Accept(user_list,recdata->account,recdata->your_account,friend_list);
         break; //case5执行的操作 0.从friend_list确定双方是否是好友 1.找到好友添加双方的文件标示符 2.如果能找到，则发送好友成立通知 3.改变friend_list 4.将friend_list存储到文件中
-        case 6: Sign_In(recdata->my_name,recdata->password,client_fd);
+        case 6: Sign_In(recdata->account,recdata->password,client_fd);
         break; //case6执行的操作 0.读取账户密码文件，确定是否存在要注册用户 1.如果不存在，则在文件最后加上注册用户的name和password 2.返回注册成功信息
-        case 7: User_Login(recdata->my_name,recdata->password,client_fd);
+        case 7: User_Login(recdata->account,recdata->password,client_fd);
         break; //case7执行的操作 0.读取账户密码文件，确定是否存在登录用户 1.如果存在且密码正确，返回登录成功 2.如果存在但密码不正确，返回密码错误 3.如果不存在，返回无此用户
-        default: pritnf("收到无效信息/n");
+        default: printf("收到无效信息/n");
         break;
     }
     while(p->next)
@@ -421,7 +423,7 @@ int * User_Online(int account,struct Client_FD *list_head,int fd,int ** friend_l
                 Send_Online_Message(temp_fd,account); //向这个文件标示符发送account上线，在your_account中填充account
         else j++;
     }
-    return user_list;
+    return user_list[100];
 }
 void User_Offline(int * user_list,int account,struct Client_FD * list_head,int ** friend_list)
 {
@@ -435,7 +437,7 @@ void Friend_Request(int * user_list,int my_account,int your_account,int ** frien
 {
     return;
 }
-void Init_Friend_List(int ** friend_list)
+void Init_Friend_List(int friend_list[][])
 {
     return;
 }
