@@ -82,7 +82,7 @@ int Get_FD_from_Account(int * user_list,int account);
 void Send_Online_Message(int fd,int account);
 void Send_Offline_Message(int fd,int account);
 
-void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *recdata,int * user_list,int * friend_list[]);
+//void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *recdata,int * user_list,int * friend_list[]);
 
 //结构体: 消息结构体
 struct SEND_DATA
@@ -220,7 +220,7 @@ void *thread_work_func(void *arg)
     {   
         r_cnt=read(client_fd,&recdata,sizeof(struct SEND_DATA));
         //strcpy(list_head->name,recdata.my_name);
-        Data_interrupt(client_fd,list_head,&recdata,user_list,friend_list); //参数：1.进入消息中断的客户端的文件标识符 2.记录有全部客户端标识符的链表头 3.收到的消息
+        Data_interrupt(client_fd,list_head,&recdata,friend_list,user_list); //参数：1.进入消息中断的客户端的文件标识符 2.记录有全部客户端标识符的链表头 3.收到的消息
         if(r_cnt<=0)  //判断对方是否断开连接
         {
            	//sendata.stat=0x2; //下线
@@ -359,7 +359,7 @@ struct SEND_DATA
 };//转发消息
 */
 
-void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *recdata,int * user_list,int * friend_list[])
+void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *recdata,int *friend_list[],int * user_list)
 {
     struct Client_FD *p=list_head;
     struct SEND_DATA sendata;
@@ -372,6 +372,7 @@ void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *
 	printf("data:%s",recdata->data);
 	printf("account:%d\n",recdata->account);
 	printf("password:%s\n",recdata->password);
+	//write(client_fd,recdata,sizeof(struct SEND_DATA)); //回传调试
     switch(recdata->stat)
     {
         case 1: User_Online(user_list,recdata->account,list_head,client_fd,friend_list);//将上线用户的name与对应的文件标示符绑定到一个数组里
@@ -391,16 +392,8 @@ void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *
         default: printf("收到无效信息/n");
         break;
     }
-    while(p->next)
-    {	
-    	p=p->next;
-        if(p->fd!=client_fd)
-        {
-        	
-            //write(p->fd,recdata,sizeof(struct SEND_DATA));
-        } 
-    }
     pthread_mutex_unlock(&mutex_lock);
+    return;
 }
 void User_Online(int * user_list,int account,struct Client_FD *list_head,int fd,int ** friend_list)
 {
@@ -451,12 +444,11 @@ void Sign_In(int my_account,char * password, int fd)
     struct SEND_DATA sendata; 
     sendata.stat = 0x6;
 
-    fseek(fp,0,SEEK_SET);
 	fp = fopen("./acc_pass.txt","a+");
 	fprintf(fp,"%d ",my_account);
 	fprintf(fp,"%s\n",password);
 	fclose(fp);
-
+	strcpy(sendata.data,"Sign in accept\n");
     write(fd,&sendata,sizeof(struct SEND_DATA));
     return;
 
@@ -464,17 +456,23 @@ void Sign_In(int my_account,char * password, int fd)
 void User_Login(int my_account,char * password, int fd)
 {
     FILE* fp =NULL;
-	char buff[255];
+    char buff[255];
     int account = -1;
     struct SEND_DATA sendata; 
     sendata.stat = 0x7;
 
-    fseek(fp,0,SEEK_SET);
-	fp = fopen("./acc_pass.txt","a+");
+    //fseek(fp,0,SEEK_SET);
+    fp = fopen("./acc_pass.txt","a+");
     while(account != my_account)
     {
 	    fscanf(fp,"%d",&account);
 	    fscanf(fp,"%s",buff);
+	    if(feof(fp)){
+	    	strcpy(sendata.data,"No that account\n");
+	    	write(fd,&sendata,sizeof(struct SEND_DATA));
+	    	fclose(fp);
+	    	return;
+    		}
     }
     if(!strcmp(password,buff))
     {
@@ -484,7 +482,7 @@ void User_Login(int my_account,char * password, int fd)
     {
         strcpy(sendata.data,"Wrong password");
     }
-	fclose(fp);
+    fclose(fp);
     write(fd,&sendata,sizeof(struct SEND_DATA));
     return;
 }

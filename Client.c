@@ -16,7 +16,7 @@
 #include <pthread.h>
 
 void Main_UI_Hello();
-void Account_UI_Login();
+int Account_UI_Login();
 void Account_UI_SignIn();
 void Main_UI_Menu();
 
@@ -39,7 +39,9 @@ struct SEND_DATA send_data;
 int run_flag=1; //运行标志
 int sign_flag=0;
 int login_flag=0;
-
+//创建管道和线程通信
+int pipe1[2];
+	
 char name [30];
 /*
 线程工作函数
@@ -51,7 +53,9 @@ void *thread_work_func(void *arg)
     int r_cnt;
     char choice;
     fd_set readfds;
-
+    
+    
+    //write( *(int*)arg,str, sizeof(str));
     while(1)
     {
         //清空集合
@@ -60,10 +64,19 @@ void *thread_work_func(void *arg)
         FD_SET(sockfd,&readfds);
         //检测客户端的IO状态  
         select_cnt=select(sockfd+1,&readfds,NULL,NULL,NULL);
+        char str[] = "L";
+        
         if(select_cnt>0)
         {
             //读取服务器发送过来的数据
+            printf("进入消息中断.\n");
             r_cnt=read(sockfd,&recv_data,sizeof(struct SEND_DATA));
+                        printf("stat:%d\n",recv_data.stat);
+	printf("my_name:%s\n",recv_data.my_name);
+	printf("your_account:%d\n",recv_data.your_account);
+	printf("data:%s",recv_data.data);
+	printf("account:%d\n",recv_data.account);
+	printf("password:%s\n",recv_data.password);
             if(r_cnt<=0)  //判断对方是否断开连接
             {
                 printf("服务器断开连接.\n");
@@ -109,12 +122,18 @@ void *thread_work_func(void *arg)
             //服务器存储注册数据成功
             else if(recv_data.stat==0x6)
             {
-                sign_flag = 1;
+                printf("%s\n",recv_data.data);
+                
             }
             //服务器校验登录数据正确
             else if(recv_data.stat==0x7)
             {
-                login_flag = 1;
+                //printf("登陆回传%s",recv_data.data);
+                if(strcmp(recv_data.data,"Login")!=0)
+        		printf("%s",recv_data.data);
+		else 
+                	write( *(int*)arg, str, sizeof(str));
+                
             }
             //有用户给我发了文件，后台接收
             else if (recv_data.stat==0x8)
@@ -131,51 +150,56 @@ void *thread_work_func(void *arg)
     run_flag=0; //服务器断开连接
 }
 
-void Account_UI_Login()
+int Account_UI_Login()
 {
+    struct SEND_DATA send_data;
+    struct SEND_DATA recv_data;
     system("clear");
-    //char password[30];
-    printf("请输入用户名:");
-    scanf("%s",name);
-    /*fflush(stdin);
+    int account;
+    char buff[100];
+    char password[30];
+    printf("请输入账户:");
+    scanf("%d",&account);
+    fflush(stdin);
     printf("请输入密码:");
     scanf("%s",password);
     fflush(stdin);
     send_data.stat = 0x7;
-    strcpy(send_data.my_name,name);
+    strcpy(send_data.data,password);
+    strcpy(send_data.my_name,password);
+    send_data.account = account;
     strcpy(send_data.password,password);
     write(sockfd,&send_data,sizeof(struct SEND_DATA));
-    while(1)
-    {
-        if(login_flag)
-            break;
+	usleep(500);
+	read(pipe1[0],buff,100);
+	//printf("%d\n",(*buff=='L'));
+	//printf("%s",buff);
+    if(*buff == 'L')
+    	{printf("欢迎登陆\n");
+    	sleep(2);
+    	return 1;}
+    else{
+    sleep(2);
+    fflush(stdin);
+    return 0;
     }
-    */
-    //告诉服务器我上线了
-    send_data.stat=0x1; //上线
-    strcpy(send_data.my_name,name); //昵称
-    write(sockfd,&send_data,sizeof(struct SEND_DATA));
-    return;
 }
 void Account_UI_SignIn()
 {
     system("clear");
-    char name[30] , password[30];
+    int account;
+    char password[30];
     printf("请输入用户名:");
-    scanf("%s",name);
+    scanf("%d",&account);
     fflush(stdin);
     printf("请输入密码:");
     scanf("%s",password);
     fflush(stdin);
     send_data.stat = 0x6;
-    strcpy(send_data.my_name,name);
+    send_data.account=account;
     strcpy(send_data.password,password);
     write(sockfd,&send_data,sizeof(struct SEND_DATA));
-    while(1)
-    {
-        if(sign_flag)
-            break;
-    }
+    sleep(2);
     return;
 }
 void Main_UI_Menu(){
@@ -225,8 +249,9 @@ void Main_UI_Hello(){
         fflush(stdin);
         switch(choice){
             case 1:
-                Account_UI_Login(); //进入登陆UI
-                return;
+                if(Account_UI_Login()) 
+                	{return;
+                	getchar();}
                 break;
             case 2:
                 Account_UI_SignIn();  //进入注册UI
@@ -271,16 +296,22 @@ int main(int argc,char **argv)
         printf("客户端:连接服务器失败.\n");
         return 0;
     }
-
+	if(pipe(pipe1)<0)
+	exit(1);
+	int flags1 = fcntl(pipe1[1], F_GETFL, 0);
+	flags1 |= O_NONBLOCK;
+	fcntl(pipe1[1], F_SETFL, flags1);
+	int flags0 = fcntl(pipe1[0], F_GETFL, 0);
+	flags0 |= O_NONBLOCK;
+	fcntl(pipe1[0], F_SETFL, flags0);
     //创建线程接收消息
     pthread_t pthread_id;
-    pthread_create(&pthread_id,NULL,thread_work_func,NULL);
+    pthread_create(&pthread_id,NULL,thread_work_func,&pipe1[1]);
 
     //显示登录界面
     Main_UI_Hello();
-    
     //显示好友添加或选择界面
-    Main_UI_Menu();
+    //Main_UI_Menu();
 
     //发送消息
     send_data.stat=0x3;
@@ -288,15 +319,15 @@ int main(int argc,char **argv)
     strcpy(send_data.my_name,name);
     while(1)
     {
-        //fgets(send_data.data,100,stdin); //从键盘上读取消息
-        strcpy(send_data.data,"harry");
+        fgets(send_data.data,100,stdin); //从键盘上读取消息
+        //strcpy(send_data.data,"harry");
         if(run_flag==0)break; //与服务器断开连接
         if(write(sockfd,&send_data,sizeof(struct SEND_DATA))<0)
         {
             printf("向服务器发送消息失败.\n");
             break;
         }
-        break;
+        //break;
     }
     /*4. 关闭套接字*/
     close(sockfd);
