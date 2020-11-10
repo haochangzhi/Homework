@@ -27,7 +27,7 @@ struct SEND_DATA
 {
     char stat;      //状态: 0x1 上线  0x2 下线  0x3 聊天数据 0x4 请求好友 0x5 添加好友 0x6注册用户 0x7登陆请求 0x08 发送文件
     char my_name[100]; //我的昵称
-    char your_name[100]; //发送目标的昵称
+    int your_name[100]; //发送目标的账号
     char data[100]; //发送的实际聊天数据
     char account[100]; //为了方便，不考虑效率的情况下把所有信息汇聚进一个结构体，根据不同的stat复用结构体
     char password[100];
