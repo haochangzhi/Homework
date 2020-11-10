@@ -27,9 +27,9 @@ struct SEND_DATA
 {
     char stat;      //状态: 0x1 上线  0x2 下线  0x3 聊天数据 0x4 请求好友 0x5 添加好友 0x6注册用户 0x7登陆请求 0x08 发送文件
     char my_name[100]; //我的昵称
-    int your_name[100]; //发送目标的账号
+    int your_account; //发送目标的账号
     char data[100]; //发送的实际聊天数据
-    char account[100]; //为了方便，不考虑效率的情况下把所有信息汇聚进一个结构体，根据不同的stat复用结构体
+    int account; //为了方便，不考虑效率的情况下把所有信息汇聚进一个结构体，根据不同的stat复用结构体
     char password[100];
 };
 
@@ -73,22 +73,22 @@ void *thread_work_func(void *arg)
             //有用户上线
             if(recv_data.stat==0x1)
             {
-                printf("%s 用户上线.\n",recv_data.your_name);
+                printf("%d 用户上线.\n",recv_data.your_account);
             }
             //用户下线
             else if(recv_data.stat==0x2)
             {
-                printf("%s 用户下线.\n",recv_data.your_name);
+                printf("%d 用户下线.\n",recv_data.your_account);
             }
             //用户给我发送的信息
             else if(recv_data.stat==0x3)
             {
-                printf("%s:%s\n",recv_data.your_name,recv_data.data);
+                printf("%d:%s\n",recv_data.your_account,recv_data.data);
             } 
             //用户请求与我成为好友
             else if(recv_data.stat==0x4)
             {
-                printf("%s 用户申请与你成为好友\n",recv_data.your_name);
+                printf("%d 用户申请与你成为好友\n",recv_data.your_account);
                 fflush(stdin);
                 printf("是否同意与他成为好友，No=0 or Yes=1\n");
                 scanf("%c",&choice);
@@ -97,14 +97,14 @@ void *thread_work_func(void *arg)
                 {
                     send_data.stat = 0x5;
                     strcpy(send_data.my_name,name);
-                    strcpy(send_data.your_name,recv_data.your_name);
+                    send_data.your_account = recv_data.your_account;
                     write(sockfd,&send_data,sizeof(struct SEND_DATA));
                 } 
             }
             //用户同意的信息
             else if(recv_data.stat==0x5)
             {
-                printf("%s 用户同意了你的好友请求\n",recv_data.your_name);
+                printf("%d 用户同意了你的好友请求\n",recv_data.your_account);
             }
             //服务器存储注册数据成功
             else if(recv_data.stat==0x6)
@@ -119,7 +119,7 @@ void *thread_work_func(void *arg)
             //有用户给我发了文件，后台接收
             else if (recv_data.stat==0x8)
             {
-                printf("%s 用户发送文件给我\n",recv_data.your_name);
+                printf("%d 用户发送文件给我\n",recv_data.your_account);
             }
         }
         else
@@ -284,7 +284,7 @@ int main(int argc,char **argv)
 
     //发送消息
     send_data.stat=0x3;
-    strcpy(send_data.your_name,"harry");
+    
     strcpy(send_data.my_name,name);
     while(1)
     {

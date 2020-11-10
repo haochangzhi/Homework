@@ -84,9 +84,9 @@ struct SEND_DATA
 {
     char stat;      //状态: 0x1 上线  0x2 下线  0x3 聊天数据 0x4 请求好友 0x5 添加好友 0x6注册用户 0x7登陆请求 0x08 发送文件
     char my_name[100]; //我的昵称
-    int your_name[100]; //发送目标的账号
+    int your_account; //发送目标的账号
     char data[100]; //发送的实际聊天数据
-    char account[100]; //为了方便，不考虑效率的情况下把所有信息汇聚进一个结构体，根据不同的stat复用结构体
+    int account; //为了方便，不考虑效率的情况下把所有信息汇聚进一个结构体，根据不同的stat复用结构体
     char password[100];
 };//转发消息
 void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *sendata,int * user_list,int ** friend_list);
@@ -348,9 +348,9 @@ struct SEND_DATA
 {
     char stat;      //状态: 0x1 上线  0x2 下线  0x3 聊天数据 0x4 请求好友 0x5 添加好友 0x6注册用户 0x7登陆请求 0x08 发送文件
     char my_name[100]; //我的昵称
-    int your_name[100]; //发送目标的账号
+    int your_account; //发送目标的账号
     char data[100]; //发送的实际聊天数据
-    char account[100]; //为了方便，不考虑效率的情况下把所有信息汇聚进一个结构体，根据不同的stat复用结构体
+    int account; //为了方便，不考虑效率的情况下把所有信息汇聚进一个结构体，根据不同的stat复用结构体
     char password[100];
 };//转发消息
 */
@@ -364,9 +364,9 @@ void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *
     printf("收到来自文件标识符%d的消息，进入消息中断\n",client_fd);
     printf("stat:%d\n",recdata->stat);
 	printf("my_name:%s\n",recdata->my_name);
-	printf("your_name:%s\n",recdata->your_name);
+	printf("your_account:%d\n",recdata->your_account);
 	printf("data:%s",recdata->data);
-	printf("account:%s\n",recdata->account);
+	printf("account:%d\n",recdata->account);
 	printf("password:%s\n",recdata->password);
     switch(recdata->stat)
     {
@@ -374,11 +374,11 @@ void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *
         break;//case1执行的动作：1.绑定账号与fd，更新名单数组 2.将上线通知转发给在线好友 3.发送该用户的好友列表与在线情况
         case 2: User_Offline(user_list,recdata->account,list_head,friend_list);
         break; //case2执行的操作：1.将下线账号和对应fd从数组中删除 2.将下线通知转发给好友
-        case 3: Message_Deliver(user_list,recdata->account,recdata->your_name,recdata->data,friend_list);
+        case 3: Message_Deliver(user_list,recdata->account,recdata->your_account,recdata->data,friend_list);
         break; //case3执行的操作： 0. 从friend_list确定双方是否是好友 1.找到信息收发两方的文件标示符 2.如果找不到，即your_name不在线，返回错误语句 3.否则将消息1对1转发
-        case 4: Friend_Request(user_list,recdata->my_name,recdata->your_name,friend_list); 
+        case 4: Friend_Request(user_list,recdata->my_name,recdata->your_account,friend_list); 
         break; //case4执行的操作： 0. 从friend_list确定双方是否是好友 1.找到好友添加双方的文件标示符 2.如果找不到，即your_name不在线，返回错误语句 3.否则将好友请求消息发送给your_name
-        case 5: Friend_Accept(user_list,recdata->my_name,recdata->your_name,friend_list);
+        case 5: Friend_Accept(user_list,recdata->my_name,recdata->your_account,friend_list);
         break; //case5执行的操作 0.从friend_list确定双方是否是好友 1.找到好友添加双方的文件标示符 2.如果能找到，则发送好友成立通知 3.改变friend_list 4.将friend_list存储到文件中
         case 6: Sign_In(recdata->my_name,recdata->password,client_fd);
         break; //case6执行的操作 0.读取账户密码文件，确定是否存在要注册用户 1.如果不存在，则在文件最后加上注册用户的name和password 2.返回注册成功信息
@@ -418,22 +418,74 @@ int * User_Online(int account,struct Client_FD *list_head,int fd,int ** friend_l
         if(friend_list[i][j]>0)
             temp_fd = Get_FD_from_Account(user_list,friend_list[i][j]);//从account找到文件标示符，即从内容找序号
             if(temp_fd != 0) 
-                Send_Online_Message(temp_fd,account); //向这个文件标示符发送account上线，在your_name中填充account
+                Send_Online_Message(temp_fd,account); //向这个文件标示符发送account上线，在your_account中填充account
         else j++;
     }
     return user_list;
 }
 void User_Offline(int * user_list,int account,struct Client_FD * list_head,int ** friend_list)
 {
-    int 
-    user_list
+    return;
 }
-void Message_Deliver(int * user_list,int my_account,int your_account,char * data,int ** friend_list);
-void Friend_Request(int * user_list,int my_account,int your_account,int ** friend_list);
-void Init_Friend_List(int ** friend_list);
-void Friend_Accept(int * user_list,int my_account,int your_account,int ** friend_list);
-void Sign_In(int my_account,char * password, int fd);
-void User_Login(int my_account,char * password, int fd);
+void Message_Deliver(int * user_list,int my_account,int your_account,char * data,int ** friend_list)
+{
+    return;
+}
+void Friend_Request(int * user_list,int my_account,int your_account,int ** friend_list)
+{
+    return;
+}
+void Init_Friend_List(int ** friend_list)
+{
+    return;
+}
+void Friend_Accept(int * user_list,int my_account,int your_account,int ** friend_list)
+{
+    return;
+}
+void Sign_In(int my_account,char * password, int fd)
+{
+    FILE* fp =NULL;
+    struct SEND_DATA sendata; 
+    sendata.stat = 0x6;
+
+    fseek(fp,0,SEEK_SET);
+	fp = fopen("./acc_pass.txt","a+");
+	fprintf(fp,"%d ",my_account);
+	fprintf(fp,"%s\n",password);
+	fclose(fp);
+
+    write(fd,&sendata,sizeof(struct SEND_DATA));
+    return;
+
+}
+void User_Login(int my_account,char * password, int fd)
+{
+    FILE* fp =NULL;
+	char buff[255];
+    int account = -1;
+    struct SEND_DATA sendata; 
+    sendata.stat = 0x7;
+
+    fseek(fp,0,SEEK_SET);
+	fp = fopen("./acc_pass.txt","a+");
+    while(account != my_account)
+    {
+	    fscanf(fp,"%d",&account);
+	    fscanf(fp,"%s",buff);
+    }
+    if(!strcmp(password,buff))
+    {
+        strcpy(sendata.data,"Login");
+    }
+    else
+    {
+        strcpy(sendata.data,"Wrong password");
+    }
+	fclose(fp);
+    write(fd,&sendata,sizeof(struct SEND_DATA));
+    return;
+}
 
 int Get_FD_from_Account(int * user_list,int account)
 {
@@ -441,7 +493,7 @@ int Get_FD_from_Account(int * user_list,int account)
     while(user_list[fd] != account)
     {
         fd++;
-        if(fd>100)
+        if(fd>=100)
             return 0;
     }
     return fd;
@@ -451,7 +503,7 @@ void Send_Online_Message(int fd,int account)
 {
     struct SEND_DATA sendata; 
     sendata.stat = 0x1;
-    sendata.your_name = account;
+    sendata.your_account = account;
     write(fd,&sendata,sizeof(struct SEND_DATA));
     return;
 }
@@ -459,7 +511,7 @@ void Send_Offline_Message(int fd,int account)
 {
     struct SEND_DATA sendata; 
     sendata.stat = 0x2;
-    sendata.your_name = account;
+    sendata.your_account = account;
     write(fd,&sendata,sizeof(struct SEND_DATA));
     return;
 }
