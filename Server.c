@@ -59,6 +59,7 @@ struct THREAD_INFO thread_info[MAX_THREAD_CNT];
 struct Client_FD
 {
     int fd;
+    int client_account;
     struct Client_FD *next;
 };
 struct Client_FD *list_head=NULL; //定义链表头
@@ -70,14 +71,14 @@ void ListDelNode(struct Client_FD *list_head,int fd);
 pthread_mutex_t mutex_lock;
 
 //实现的函数
-void User_Online(int * user_list,int account,struct Client_FD *list_head,int fd);
-void User_Offline(int * user_list,int account,struct Client_FD * list_head);
-void Message_Deliver(int * user_list,int my_account,int your_account,char * data);
-void Friend_Request(int * user_list,int my_account,int your_account);
-void Friend_Accept(int * user_list,int my_account,int your_account);
+void User_Online(int account,struct Client_FD *list_head,int fd);
+void User_Offline(int account,struct Client_FD * list_head,int fd);
+void Message_Deliver(struct Client_FD * list_head,int my_account,int your_account,char * data);
+void Friend_Request(int my_account,int your_account);
+void Friend_Accept(int my_account,int your_account);
 void Sign_In(int my_account,char * password, int fd);
 void User_Login(int my_account,char * password, int fd);
-int Get_FD_from_Account(int * user_list,int account);
+int Get_FD_from_Account(int account);
 void Send_Online_Message(int fd,int account);
 void Send_Offline_Message(int fd,int account);
 
@@ -209,17 +210,17 @@ void *thread_work_func(void *arg)
     thread_info[index].fd=client_fd;
     pthread_cleanup_push(clear_resource_thread,&thread_info[index]);
 
-    int user_list [100];
     //实现与客户端通信
     while(thread_run_flag)
     {   
         r_cnt=read(client_fd,&recdata,sizeof(struct SEND_DATA));
         //strcpy(list_head->name,recdata.my_name);
-        Data_interrupt(client_fd,list_head,&recdata,user_list); //参数：1.进入消息中断的客户端的文件标识符 2.记录有全部客户端标识符的链表头 3.收到的消息
+        Data_interrupt(client_fd,list_head,&recdata); //参数：1.进入消息中断的客户端的文件标识符 2.记录有全部客户端标识符的链表头 3.收到的消息
         if(r_cnt<=0)  //判断对方是否断开连接
         {
            	//sendata.stat=0x2; //下线
             //Client_SendData(client_fd,list_head,&sendata); //转发下线消息
+            User_Offline(recdata.account,list_head,client_fd);
             ListDelNode(list_head,client_fd); //删除当前的套接字
             printf("服务器提示: 客户端断开连接.\n");
             break;
@@ -354,7 +355,7 @@ struct SEND_DATA
 };//转发消息
 */
 
-void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *recdata,int * user_list)
+void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *recdata)
 {
     struct Client_FD *p=list_head;
     struct SEND_DATA sendata;
@@ -370,15 +371,15 @@ void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *
 	//write(client_fd,recdata,sizeof(struct SEND_DATA)); //回传调试
     switch(recdata->stat)
     {
-        case 1: User_Online(user_list,recdata->account,list_head,client_fd);//将上线用户的name与对应的文件标示符绑定到一个数组里
+        case 1: User_Online(recdata->account,list_head,client_fd);//将上线用户的name与对应的文件标示符绑定到一个数组里
         break;//case1执行的动作：1.绑定账号与fd，更新名单数组 2.将上线通知转发给在线好友 3.发送该用户的好友列表与在线情况
-        case 2: User_Offline(user_list,recdata->account,list_head);
+        case 2: User_Offline(recdata->account,list_head,client_fd);
         break; //case2执行的操作：1.将下线账号和对应fd从数组中删除 2.将下线通知转发给好友
-        case 3: Message_Deliver(user_list,recdata->account,recdata->your_account,recdata->data);
+        case 3: Message_Deliver(list_head,recdata->account,recdata->your_account,recdata->data);
         break; //case3执行的操作： 0. 读取文件确定双方是否是好友 1.找到信息收发两方的文件标示符 2.如果找不到，即your_name不在线，返回错误语句 3.否则将消息1对1转发
-        case 4: Friend_Request(user_list,recdata->account,recdata->your_account); 
+        case 4: Friend_Request(recdata->account,recdata->your_account); 
         break; //case4执行的操作： 0. 读取文件确定双方是否是好友 1.找到好友添加双方的文件标示符 2.如果找不到，即your_name不在线，返回错误语句 3.否则将好友请求消息发送给your_name
-        case 5: Friend_Accept(user_list,recdata->account,recdata->your_account);
+        case 5: Friend_Accept(recdata->account,recdata->your_account);
         break; //case5执行的操作 0.读取文件确定双方是否是好友 1.找到好友添加双方的文件标示符 2.如果能找到，则发送好友成立通知 3.改变文件 
         case 6: Sign_In(recdata->account,recdata->password,client_fd);
         break; //case6执行的操作 0.读取账户密码文件，确定是否存在要注册用户 1.如果不存在，则在文件最后加上注册用户的name和password 2.返回注册成功信息
@@ -390,45 +391,128 @@ void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *
     pthread_mutex_unlock(&mutex_lock);
     return;
 }
-void User_Online(int * user_list,int account,struct Client_FD *list_head,int fd)
+void User_Online(int account,struct Client_FD *list_head,int fd)
 {
+    struct SEND_DATA sendata;
+    struct Client_FD * p = list_head;
+    struct Client_FD * q = list_head;
+    while(p->fd!=fd)
+    {
+        p = p->next;
+    }
+    p->client_account = account;
+    
+    sendata.stat = 0x1;
+
     int temp_fd;
-    user_list[fd] = account;
+    int temp_account;
     int i=0;
-    int j=1;
+
+    char filename[100];
+    sprintf(filename,"%d",account);
+
+    FILE* fp =NULL;
+    fp = fopen(filename,"a+");
 
     while(i<100)
     {
-        //if(friend_list[i][0]== account))
+        fscanf(fp,"%d",&temp_account);
+        printf("从文件读取到登陆用户的第%d个好友:%d\n",i,temp_account);
+        printf("遍历链表结果：");
+        q = list_head;
+        while(q->next!=NULL)
+        {
+            q=q->next;
+            if(q->client_account == temp_account)
+                {
+                    sendata.your_account = temp_account;
+                    write(fd,&sendata,sizeof(struct SEND_DATA));
+                }
+            printf("%d->",q->client_account);
+            //q=q->next;
+        }
+        printf("\n");
+        i++;
+        if(feof(fp))
             break;
-        //else i++;
     }
-    while(j<100)
+    fclose(fp);
+    return;
+}
+void User_Offline(int account,struct Client_FD * list_head,int fd)
+{
+    struct SEND_DATA sendata;
+    struct Client_FD * p = list_head;
+    struct Client_FD * q = list_head;
+    while(p->fd!=fd)
     {
-        //if(friend_list[i][j]>0)
-          //  temp_fd = Get_FD_from_Account(user_list,friend_list[i][j]);//从account找到文件标示符，即从内容找序号
-            //if(temp_fd != 0) 
-              //  Send_Online_Message(temp_fd,account); //向这个文件标示符发送account上线，在your_account中填充account
-        //else
-         j++;
+        p = p->next;
     }
+    p->client_account = account;
+    
+    sendata.stat = 0x2;
+
+    int temp_fd;
+    int temp_account;
+    int i=0;
+
+    char filename[100];
+    sprintf(filename,"%d",account);
+
+    FILE* fp =NULL;
+    fp = fopen(filename,"a+");
+
+    while(i<100)
+    {
+        fscanf(fp,"%d",&temp_account);
+        printf("从文件读取到登陆用户的第%d个好友:%d\n",i,temp_account);
+        printf("遍历链表结果：");
+        q = list_head;
+        while(q->next!=NULL)
+        {
+            q=q->next;
+            if(q->client_account == temp_account)
+                {
+                    sendata.your_account = temp_account;
+                    write(q->fd,&sendata,sizeof(struct SEND_DATA));
+                }
+            printf("%d->",q->client_account);
+            //q=q->next;
+        }
+        printf("\n");
+        i++;
+        if(feof(fp))
+            break;
+    }
+    fclose(fp);
     return;
 }
-void User_Offline(int * user_list,int account,struct Client_FD * list_head)
+void Message_Deliver(struct Client_FD * list_head,int my_account,int your_account,char * data)
 {
-    return;
+    struct SEND_DATA sendata;
+    sendata.stat = 0x3;
+    strcpy(sendata.data,data);
+
+    struct Client_FD * p = list_head;
+    while(p->next!=NULL)
+    {
+        p=p->next;
+        if(p->client_account == your_account)
+            {
+                sendata.your_account = my_account;
+                write(p->fd,&sendata,sizeof(struct SEND_DATA));
+            }
+        printf("%d->",p->client_account);
+        //p=p->next;
+    }
 }
-void Message_Deliver(int * user_list,int my_account,int your_account,char * data)
-{
-    return;
-}
-void Friend_Request(int * user_list,int my_account,int your_account)
+void Friend_Request(int my_account,int your_account)
 {
     
     return;
 }
 
-void Friend_Accept(int * user_list,int my_account,int your_account)
+void Friend_Accept(int my_account,int your_account)
 {
     struct SEND_DATA sendata; 
     sendata.stat = 0x5;
@@ -497,10 +581,10 @@ void User_Login(int my_account,char * password, int fd)
     return;
 }
 
-int Get_FD_from_Account(int * user_list,int account)
+int Get_FD_from_Account(int account)
 {
     int fd=0;
-    while(user_list[fd] != account)
+    while(0)
     {
         fd++;
         if(fd>=100)

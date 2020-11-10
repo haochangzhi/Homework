@@ -19,7 +19,8 @@ void Main_UI_Hello();
 int Account_UI_Login();
 void Account_UI_SignIn();
 void Main_UI_Menu();
-
+void Friends_UI_Add();
+void Chat_UI_Private();
 //保存文件的信息
 #pragma pack(1)
 //结构体: 消息结构体
@@ -34,9 +35,11 @@ struct SEND_DATA
 };
 
 int sockfd;
+int login_account;
 struct SEND_DATA recv_data;
 struct SEND_DATA send_data;
 int run_flag=1; //运行标志
+int chat_flag = 0;
 int sign_flag=0;
 int login_flag=0;
 //创建管道和线程通信
@@ -53,7 +56,8 @@ void *thread_work_func(void *arg)
     int r_cnt;
     char choice;
     fd_set readfds;
-    
+    time_t   timep; 
+    time   (&timep);
     
     //write( *(int*)arg,str, sizeof(str));
     while(1)
@@ -71,12 +75,12 @@ void *thread_work_func(void *arg)
             //读取服务器发送过来的数据
             printf("进入消息中断.\n");
             r_cnt=read(sockfd,&recv_data,sizeof(struct SEND_DATA));
-                        printf("stat:%d\n",recv_data.stat);
-	printf("my_name:%s\n",recv_data.my_name);
-	printf("your_account:%d\n",recv_data.your_account);
-	printf("data:%s",recv_data.data);
-	printf("account:%d\n",recv_data.account);
-	printf("password:%s\n",recv_data.password);
+            printf("stat:%d\n",recv_data.stat);
+	        printf("my_name:%s\n",recv_data.my_name);
+	        printf("your_account:%d\n",recv_data.your_account);
+	        printf("data:%s",recv_data.data);
+	        printf("account:%d\n",recv_data.account);
+	        printf("password:%s\n",recv_data.password);
             if(r_cnt<=0)  //判断对方是否断开连接
             {
                 printf("服务器断开连接.\n");
@@ -86,7 +90,8 @@ void *thread_work_func(void *arg)
             //有用户上线
             if(recv_data.stat==0x1)
             {
-                printf("%d 用户上线.\n",recv_data.your_account);
+                printf("以下好友在线\n")
+                printf("%d\n",recv_data.your_account);
             }
             //用户下线
             else if(recv_data.stat==0x2)
@@ -96,7 +101,10 @@ void *thread_work_func(void *arg)
             //用户给我发送的信息
             else if(recv_data.stat==0x3)
             {
-                printf("%d:%s\n",recv_data.your_account,recv_data.data);
+                chat_flag = 1;
+                //Chat_UI_Private();
+                printf("%s",ctime(&timep)); 
+                printf("用户%d对你说:%s\n",recv_data.your_account,recv_data.data);
             } 
             //用户请求与我成为好友
             else if(recv_data.stat==0x4)
@@ -130,9 +138,9 @@ void *thread_work_func(void *arg)
             {
                 //printf("登陆回传%s",recv_data.data);
                 if(strcmp(recv_data.data,"Login")!=0)
-        		printf("%s",recv_data.data);
-		else 
-                	write( *(int*)arg, str, sizeof(str));
+        		    printf("%s",recv_data.data);
+		        else 
+                    write( *(int*)arg, str, sizeof(str));
                 
             }
             //有用户给我发了文件，后台接收
@@ -177,6 +185,7 @@ int Account_UI_Login()
     if(*buff == 'L')
     	{printf("欢迎登陆\n");
     	sleep(2);
+    	login_account = account;
     	return 1;}
     else{
     sleep(2);
@@ -205,7 +214,7 @@ void Account_UI_SignIn()
 void Main_UI_Menu(){
     char choice;
     do{
-        system("clear");
+        //system("clear");
         //Friends_UI_ShowList();
         //Friends_UI_ShowApply();
         printf( "--------------------------------\n");
@@ -217,7 +226,7 @@ void Main_UI_Menu(){
         fflush(stdin);
         switch(choice){
             case '1':
-                //Chat_UI_Private();
+                Chat_UI_Private();
                 break;
             case '2':
                 Friends_UI_Add();
@@ -230,11 +239,43 @@ void Main_UI_Menu(){
         }
     }while(choice != '4');
 }
+void Chat_UI_Private()
+{
+    time_t   timep; 
+    time   (&timep);
+    send_data.stat = 0x3;
+    int friend_account;
+    printf("请输入好友账号,以开始聊天:\n");
+    scanf("%d",&friend_account);
+    fflush(stdin);
+    send_data.account=login_account;
+    send_data.your_account = friend_account;
+    while(1)
+    {
+        printf("%s",ctime(&timep)); 
+        printf("对%d说：",friend_account);
+        fgets(send_data.data,100,stdin); //从键盘上读取消息
+        if(run_flag==0)break; //与服务器断开连接
+        if(write(sockfd,&send_data,sizeof(struct SEND_DATA))<0)
+        {
+            printf("向服务器发送消息失败.\n");
+            break;
+        }
+        //break;
+        if(strcmp(send_data.data,"88\n")==0)
+            break;
+    }
+}
 void Friends_UI_Add()
 {
     send_data.stat = 0x5;
-    send_data.account=account;
-    send_data.your_account = 8888;
+    int friend_account;
+    system("clear");
+    printf("请输入好友账号:\n");
+    scanf("%d",&friend_account);
+    fflush(stdin);
+    send_data.account=login_account;
+    send_data.your_account = friend_account;
     write(sockfd,&send_data,sizeof(struct SEND_DATA));
     sleep(2);
     return;
@@ -282,6 +323,8 @@ TCP客户端的创建步骤:
 int main(int argc,char **argv)
 {
     char my_name[100]; //我的昵称
+    time_t timep; 
+    time (&timep); 
      if(argc!=3)
     {
         printf("参数: ./tcp_client <IP地址> <端口号> \n");
@@ -319,24 +362,13 @@ int main(int argc,char **argv)
     //显示登录界面
     Main_UI_Hello();
     //显示好友添加或选择界面
+
+    send_data.stat=0x1;
+    send_data.account = login_account;
+    write(sockfd,&send_data,sizeof(struct SEND_DATA));
+    usleep(200);
     Main_UI_Menu();
 
-    //发送消息
-    send_data.stat=0x3;
-    
-    strcpy(send_data.my_name,name);
-    while(1)
-    {
-        fgets(send_data.data,100,stdin); //从键盘上读取消息
-        //strcpy(send_data.data,"harry");
-        if(run_flag==0)break; //与服务器断开连接
-        if(write(sockfd,&send_data,sizeof(struct SEND_DATA))<0)
-        {
-            printf("向服务器发送消息失败.\n");
-            break;
-        }
-        //break;
-    }
     /*4. 关闭套接字*/
     close(sockfd);
     printf("聊天结束.\n");
