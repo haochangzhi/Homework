@@ -424,11 +424,29 @@ void Message_Deliver(int * user_list,int my_account,int your_account,char * data
 }
 void Friend_Request(int * user_list,int my_account,int your_account)
 {
+    
     return;
 }
 
 void Friend_Accept(int * user_list,int my_account,int your_account)
 {
+    struct SEND_DATA sendata; 
+    sendata.stat = 0x5;
+    int account=-1;
+    char filename[100];
+    sprintf(filename,"%d",my_account);
+    FILE* fp =NULL;
+    fp = fopen(filename,"a+");
+    while(account != your_account)
+    {
+	    fscanf(fp,"%d",&account);
+	    if(feof(fp))
+	    	{
+                fprintf(fp,"%d\n",your_account);
+                break;
+            }
+    }
+    fclose(fp);
     return;
 }
 void Sign_In(int my_account,char * password, int fd)
@@ -444,7 +462,6 @@ void Sign_In(int my_account,char * password, int fd)
 	strcpy(sendata.data,"Sign in accept\n");
     write(fd,&sendata,sizeof(struct SEND_DATA));
     return;
-
 }
 void User_Login(int my_account,char * password, int fd)
 {
