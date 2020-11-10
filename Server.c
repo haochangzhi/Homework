@@ -74,7 +74,7 @@ int * User_Online(int account,struct Client_FD *list_head,int fd,int ** friend_l
 void User_Offline(int * user_list,int account,struct Client_FD * list_head,int ** friend_list);
 void Message_Deliver(int * user_list,int my_account,int your_account,char * data,int ** friend_list);
 void Friend_Request(int * user_list,int my_account,int your_account,int ** friend_list);
-void Init_Friend_List(int friend_list[][]);
+//void Init_Friend_List(int friend_list[][]);
 void Friend_Accept(int * user_list,int my_account,int your_account,int ** friend_list);
 void Sign_In(int my_account,char * password, int fd);
 void User_Login(int my_account,char * password, int fd);
@@ -423,7 +423,7 @@ int * User_Online(int account,struct Client_FD *list_head,int fd,int ** friend_l
                 Send_Online_Message(temp_fd,account); //向这个文件标示符发送account上线，在your_account中填充account
         else j++;
     }
-    return user_list[100];
+    return user_list[];
 }
 void User_Offline(int * user_list,int account,struct Client_FD * list_head,int ** friend_list)
 {
@@ -437,10 +437,10 @@ void Friend_Request(int * user_list,int my_account,int your_account,int ** frien
 {
     return;
 }
-void Init_Friend_List(int friend_list[][])
-{
-    return;
-}
+//void Init_Friend_List(int friend_list[][])
+//{
+//    return;
+//}
 void Friend_Accept(int * user_list,int my_account,int your_account,int ** friend_list)
 {
     return;
