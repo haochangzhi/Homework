@@ -220,7 +220,7 @@ void Main_UI_Menu(){
                 //Chat_UI_Private();
                 break;
             case '2':
-                //Friends_UI_Add();
+                Friends_UI_Add();
                 break;
             case '3':
                 //Friends_UI_Add();
@@ -230,7 +230,15 @@ void Main_UI_Menu(){
         }
     }while(choice != '4');
 }
-
+void Friends_UI_Add()
+{
+    send_data.stat = 0x5;
+    send_data.account=account;
+    send_data.your_account = 8888;
+    write(sockfd,&send_data,sizeof(struct SEND_DATA));
+    sleep(2);
+    return;
+}
 void Main_UI_Hello(){
     int choice;
     do{
@@ -311,7 +319,7 @@ int main(int argc,char **argv)
     //显示登录界面
     Main_UI_Hello();
     //显示好友添加或选择界面
-    //Main_UI_Menu();
+    Main_UI_Menu();
 
     //发送消息
     send_data.stat=0x3;
