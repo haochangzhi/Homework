@@ -74,7 +74,7 @@ pthread_mutex_t mutex_lock;
 void User_Online(int account,struct Client_FD *list_head,int fd);
 void User_Offline(int account,struct Client_FD * list_head,int fd);
 void Message_Deliver(struct Client_FD * list_head,int my_account,int your_account,char * data);
-void Friend_Request(int my_account,int your_account);
+void Friend_Request(struct Client_FD * list_head,int my_account,int your_account);
 void Friend_Accept(int my_account,int your_account);
 void Sign_In(int my_account,char * password, int fd);
 void User_Login(int my_account,char * password, int fd);
@@ -377,7 +377,7 @@ void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *
         break; //case2执行的操作：1.将下线账号和对应fd从数组中删除 2.将下线通知转发给好友
         case 3: Message_Deliver(list_head,recdata->account,recdata->your_account,recdata->data);
         break; //case3执行的操作： 0. 读取文件确定双方是否是好友 1.找到信息收发两方的文件标示符 2.如果找不到，即your_name不在线，返回错误语句 3.否则将消息1对1转发
-        case 4: Friend_Request(recdata->account,recdata->your_account); 
+        case 4: Friend_Request(list_head,recdata->account,recdata->your_account); 
         break; //case4执行的操作： 0. 读取文件确定双方是否是好友 1.找到好友添加双方的文件标示符 2.如果找不到，即your_name不在线，返回错误语句 3.否则将好友请求消息发送给your_name
         case 5: Friend_Accept(recdata->account,recdata->your_account);
         break; //case5执行的操作 0.读取文件确定双方是否是好友 1.找到好友添加双方的文件标示符 2.如果能找到，则发送好友成立通知 3.改变文件 
@@ -425,7 +425,7 @@ void User_Online(int account,struct Client_FD *list_head,int fd)
             q=q->next;
             if(q->client_account == temp_account)
                 {
-                    sendata.your_account = temp_account;
+                    sendata.your_account = q->client_account;
                     write(fd,&sendata,sizeof(struct SEND_DATA));
                 }
             printf("%d->",q->client_account);
@@ -448,8 +448,6 @@ void User_Offline(int account,struct Client_FD * list_head,int fd)
     {
         p = p->next;
     }
-    p->client_account = account;
-    
     sendata.stat = 0x2;
 
     int temp_fd;
@@ -473,7 +471,7 @@ void User_Offline(int account,struct Client_FD * list_head,int fd)
             q=q->next;
             if(q->client_account == temp_account)
                 {
-                    sendata.your_account = temp_account;
+                    sendata.your_account = p->client_account;;
                     write(q->fd,&sendata,sizeof(struct SEND_DATA));
                 }
             printf("%d->",q->client_account);
@@ -506,9 +504,24 @@ void Message_Deliver(struct Client_FD * list_head,int my_account,int your_accoun
         //p=p->next;
     }
 }
-void Friend_Request(int my_account,int your_account)
+void Friend_Request(struct Client_FD * list_head,int my_account,int your_account)
 {
-    
+    struct SEND_DATA sendata;
+    sendata.stat = 0x4;
+    strcpy(sendata.data,"请求和你成为好友\n");
+
+    struct Client_FD * p = list_head;
+    while(p->next!=NULL)
+    {
+        p=p->next;
+        if(p->client_account == your_account)
+            {
+                sendata.your_account = my_account;
+                write(p->fd,&sendata,sizeof(struct SEND_DATA));
+            }
+        printf("%d->",p->client_account);
+        //p=p->next;
+    }
     return;
 }
 

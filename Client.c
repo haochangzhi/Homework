@@ -42,10 +42,12 @@ int run_flag=1; //运行标志
 int chat_flag = 0;
 int sign_flag=0;
 int login_flag=0;
+int friend_RQ;
 //创建管道和线程通信
 int pipe1[2];
 	
 char name [30];
+
 /*
 线程工作函数
 */
@@ -73,14 +75,14 @@ void *thread_work_func(void *arg)
         if(select_cnt>0)
         {
             //读取服务器发送过来的数据
-            printf("进入消息中断.\n");
+            //printf("进入消息中断.\n");
             r_cnt=read(sockfd,&recv_data,sizeof(struct SEND_DATA));
-            printf("stat:%d\n",recv_data.stat);
-	        printf("my_name:%s\n",recv_data.my_name);
-	        printf("your_account:%d\n",recv_data.your_account);
-	        printf("data:%s",recv_data.data);
-	        printf("account:%d\n",recv_data.account);
-	        printf("password:%s\n",recv_data.password);
+            //printf("stat:%d\n",recv_data.stat);
+	        //printf("my_name:%s\n",recv_data.my_name);
+	        //printf("your_account:%d\n",recv_data.your_account);
+	        //printf("data:%s",recv_data.data);
+	        //printf("account:%d\n",recv_data.account);
+	        //printf("password:%s\n",recv_data.password);
             if(r_cnt<=0)  //判断对方是否断开连接
             {
                 printf("服务器断开连接.\n");
@@ -90,7 +92,7 @@ void *thread_work_func(void *arg)
             //有用户上线
             if(recv_data.stat==0x1)
             {
-                printf("以下好友在线\n")
+                printf("以下好友在线\n");
                 printf("%d\n",recv_data.your_account);
             }
             //用户下线
@@ -110,17 +112,8 @@ void *thread_work_func(void *arg)
             else if(recv_data.stat==0x4)
             {
                 printf("%d 用户申请与你成为好友\n",recv_data.your_account);
-                fflush(stdin);
-                printf("是否同意与他成为好友，No=0 or Yes=1\n");
-                scanf("%c",&choice);
-                //与用户成为好友，给服务器发送0x5，服务器收到以后就会建立与用户的联系
-                if(choice == '1')
-                {
-                    send_data.stat = 0x5;
-                    strcpy(send_data.my_name,name);
-                    send_data.your_account = recv_data.your_account;
-                    write(sockfd,&send_data,sizeof(struct SEND_DATA));
-                } 
+                printf("是否同意与他成为好友,请输入FriendACC以同意\n");
+                friend_RQ = recv_data.your_account;
             }
             //用户同意的信息
             else if(recv_data.stat==0x5)
@@ -218,7 +211,7 @@ void Main_UI_Menu(){
         //Friends_UI_ShowList();
         //Friends_UI_ShowApply();
         printf( "--------------------------------\n");
-        printf( "1.选择好友|2.添加好友\n");
+        printf( "1.选择好友|2.申请添加好友| \n");
         printf( "--------------------------------\n"
                 "功能选择:");
         
@@ -244,14 +237,40 @@ void Chat_UI_Private()
     time_t   timep; 
     time   (&timep);
     send_data.stat = 0x3;
+    char buff[100];
     int friend_account;
-    printf("请输入好友账号,以开始聊天:\n");
+    printf("请输入好友账号,以开始聊天:\n输入 -888 开始挂机等好友模式");
     scanf("%d",&friend_account);
     fflush(stdin);
     send_data.account=login_account;
     send_data.your_account = friend_account;
+    if(friend_account == -888)
+    {
+        printf("输入Return以退出\n");
+        while(1)
+        {
+            printf("挂机模式：");
+            fgets(buff,100,stdin);
+            if((strcmp(buff,"FriendACC\n")==0)||(friend_RQ != 0))
+            {
+                send_data.stat = 0x5;
+                send_data.account=login_account;
+                send_data.your_account = friend_RQ;
+                write(sockfd,&send_data,sizeof(struct SEND_DATA));
+                printf("已同意和%d用户成为好友",friend_RQ);
+                sleep(2);
+            }
+            else if (strcmp(buff,"Return\n")==0)
+                break;
+        }
+    }
+    printf("请输入好友账号,以开始聊天:\n输入 -888 开始挂机等好友模式");
+    scanf("%d",&friend_account);
+    fflush(stdin);
     while(1)
     {
+        send_data.stat = 0x3;
+        send_data.your_account = friend_account;
         printf("%s",ctime(&timep)); 
         printf("对%d说：",friend_account);
         fgets(send_data.data,100,stdin); //从键盘上读取消息
@@ -264,11 +283,20 @@ void Chat_UI_Private()
         //break;
         if(strcmp(send_data.data,"88\n")==0)
             break;
+        if(strcmp(send_data.data,"FriendACC\n")==0)
+            {
+                send_data.stat = 0x5;
+                send_data.account=login_account;
+                send_data.your_account = friend_RQ;
+                write(sockfd,&send_data,sizeof(struct SEND_DATA));
+                printf("已同意和%d用户成为好友",friend_RQ);
+                sleep(2);
+            } 
     }
 }
 void Friends_UI_Add()
 {
-    send_data.stat = 0x5;
+    send_data.stat = 0x4;
     int friend_account;
     system("clear");
     printf("请输入好友账号:\n");
