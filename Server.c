@@ -163,7 +163,7 @@ int main(int argc,char **argv)
         }
         else
         {
-            if(pthread_create(&thread_info[index].thread_id,NULL,thread_work_func,client_sockfd,user_list,friend_list))
+            if(pthread_create(&thread_info[index].thread_id,NULL,thread_work_func,client_sockfd))
             {
                 printf("子线程创建失败.\n");
                 break;
