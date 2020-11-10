@@ -423,7 +423,7 @@ int * User_Online(int account,struct Client_FD *list_head,int fd,int ** friend_l
                 Send_Online_Message(temp_fd,account); //向这个文件标示符发送account上线，在your_account中填充account
         else j++;
     }
-    return user_list[];
+    return &user_list;
 }
 void User_Offline(int * user_list,int account,struct Client_FD * list_head,int ** friend_list)
 {
