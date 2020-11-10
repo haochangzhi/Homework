@@ -70,7 +70,7 @@ void ListDelNode(struct Client_FD *list_head,int fd);
 pthread_mutex_t mutex_lock;
 
 //实现的函数
-int * User_Online(int account,struct Client_FD *list_head,int fd,int ** friend_list);
+void User_Online(int * user_list,int account,struct Client_FD *list_head,int fd,int ** friend_list);
 void User_Offline(int * user_list,int account,struct Client_FD * list_head,int ** friend_list);
 void Message_Deliver(int * user_list,int my_account,int your_account,char * data,int ** friend_list);
 void Friend_Request(int * user_list,int my_account,int your_account,int ** friend_list);
@@ -81,6 +81,9 @@ void User_Login(int my_account,char * password, int fd);
 int Get_FD_from_Account(int * user_list,int account);
 void Send_Online_Message(int fd,int account);
 void Send_Offline_Message(int fd,int account);
+
+void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *recdata,int * user_list,int * friend_list[]);
+
 //结构体: 消息结构体
 struct SEND_DATA
 {
@@ -91,7 +94,6 @@ struct SEND_DATA
     int account; //为了方便，不考虑效率的情况下把所有信息汇聚进一个结构体，根据不同的stat复用结构体
     char password[100];
 };//转发消息
-void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *sendata,int * user_list,int ** friend_list);
 
 int main(int argc,char **argv)
 {
@@ -357,7 +359,7 @@ struct SEND_DATA
 };//转发消息
 */
 
-void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *recdata,int * user_list,int ** friend_list)
+void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *recdata,int * user_list,int * friend_list[])
 {
     struct Client_FD *p=list_head;
     struct SEND_DATA sendata;
@@ -372,7 +374,7 @@ void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *
 	printf("password:%s\n",recdata->password);
     switch(recdata->stat)
     {
-        case 1: user_list = User_Online(recdata->account,list_head,client_fd,friend_list);//将上线用户的name与对应的文件标示符绑定到一个数组里
+        case 1: User_Online(user_list,recdata->account,list_head,client_fd,friend_list);//将上线用户的name与对应的文件标示符绑定到一个数组里
         break;//case1执行的动作：1.绑定账号与fd，更新名单数组 2.将上线通知转发给在线好友 3.发送该用户的好友列表与在线情况
         case 2: User_Offline(user_list,recdata->account,list_head,friend_list);
         break; //case2执行的操作：1.将下线账号和对应fd从数组中删除 2.将下线通知转发给好友
@@ -400,10 +402,8 @@ void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *
     }
     pthread_mutex_unlock(&mutex_lock);
 }
-
-int * User_Online(int account,struct Client_FD *list_head,int fd,int ** friend_list)
+void User_Online(int * user_list,int account,struct Client_FD *list_head,int fd,int ** friend_list)
 {
-    int user_list[100];
     int temp_fd;
     user_list[fd] = account;
     int i=0;
@@ -423,7 +423,7 @@ int * User_Online(int account,struct Client_FD *list_head,int fd,int ** friend_l
                 Send_Online_Message(temp_fd,account); //向这个文件标示符发送account上线，在your_account中填充account
         else j++;
     }
-    return &user_list;
+    return;
 }
 void User_Offline(int * user_list,int account,struct Client_FD * list_head,int ** friend_list)
 {
