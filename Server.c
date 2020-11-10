@@ -67,7 +67,8 @@ void List_AddNode(struct Client_FD *list_head,int fd);
 void ListDelNode(struct Client_FD *list_head,int fd);
 //定义互斥锁
 pthread_mutex_t mutex_lock;
-
+int * User_Online(char * name,struct Client_FD *list_head,int fd);
+void User_Offline(int * user_list,char * name,struct Client_FD * list_head);
 //结构体: 消息结构体
 struct SEND_DATA
 {
@@ -346,6 +347,7 @@ void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *
 {
     struct Client_FD *p=list_head;
     struct SEND_DATA sendata;
+    int user_list [100];
     pthread_mutex_lock(&mutex_lock);
     
     printf("收到来自文件标识符%d的消息，进入消息中断\n",client_fd);
@@ -355,6 +357,14 @@ void Data_interrupt(int client_fd,struct Client_FD *list_head,struct SEND_DATA *
 	printf("data:%s",recdata->data);
 	printf("account:%s\n",recdata->account);
 	printf("password:%s\n",recdata->password);
+    switch(recdata->stat)
+    {
+        case 1: user_list = User_Online(recdata->my_name,list_head,client_fd);//将上线用户的name与对应的文件标示符绑定到一个数组里
+        break;//case1执行的动作：1. 绑定
+        case 2: User_Offline(user_list,recdata->my_name,list_head);
+        break;
+        case 3: 
+    }
     while(p->next)
     {	
     	p=p->next;
