@@ -321,7 +321,7 @@ void List_AddNode(struct Client_FD *list_head,int fd)
     pthread_mutex_unlock(&mutex_lock);
 }
 
-//删除节点
+//删除节点fff
 void ListDelNode(struct Client_FD *list_head,int fd)
 {
     struct Client_FD *p=list_head;
